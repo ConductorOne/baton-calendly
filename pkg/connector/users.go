@@ -18,6 +18,31 @@ type userBuilder struct {
 	resourceType *v2.ResourceType
 }
 
+func userInvitationResource(email string, parentID *v2.ResourceId) (*v2.Resource, error) {
+	profile := map[string]interface{}{
+		"email": email,
+	}
+
+	invitationOptions := []rs.UserTraitOption{
+		rs.WithUserProfile(profile),
+		rs.WithEmail(email, true),
+		rs.WithStatus(v2.UserTrait_Status_STATUS_DISABLED),
+	}
+
+	resource, err := rs.NewUserResource(
+		email,
+		userResourceType,
+		email,
+		invitationOptions,
+		rs.WithParentResourceID(parentID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user invitation resource: %w", err)
+	}
+
+	return resource, nil
+}
+
 func userResource(user *calendly.User, parentId *v2.ResourceId) (*v2.Resource, error) {
 	firstName, lastName := helpers.SplitFullName(user.FullName)
 	profile := map[string]interface{}{
@@ -42,7 +67,7 @@ func userResource(user *calendly.User, parentId *v2.ResourceId) (*v2.Resource, e
 	}
 
 	resource, err := rs.NewUserResource(
-		user.Slug,
+		user.Email,
 		userResourceType,
 		user.ID,
 		userOptions,
@@ -66,28 +91,70 @@ func (o *userBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId,
 		return nil, "", nil, nil
 	}
 
-	bag, page, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: userResourceType.Id})
+	bag, page, err := parsePageToken(pToken.Token, &v2.ResourceId{ResourceType: orgResourceType.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	pgVars := calendly.NewPaginationVars(ResourcesPageSize, page)
-	users, nextPage, err := o.client.ListUsersUnderOrg(ctx, parentResourceID.Resource, pgVars)
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("calendly-connector: failed to list users: %w", err)
-	}
-
 	var rv []*v2.Resource
-	for _, u := range users {
-		ur, err := userResource(u.User, parentResourceID)
+
+	switch bag.ResourceTypeID() {
+	case orgResourceType.Id:
+		bag.Pop()
+		bag.Push(pagination.PageState{
+			ResourceTypeID: userResourceType.Id,
+		})
+		bag.Push(pagination.PageState{
+			ResourceTypeID: InvitationsType,
+		})
+
+	case InvitationsType:
+		pgVars := calendly.NewPaginationVars(ResourcesPageSize, page)
+		invitations, nextPage, err := o.client.ListUserInvitations(ctx, parentResourceID.Resource, pgVars, nil)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("calendly-connector: failed to create user resource: %w", err)
+			return nil, "", nil, fmt.Errorf("calendly-connector: failed to list org invitations: %w", err)
 		}
 
-		rv = append(rv, ur)
+		err = bag.Next(nextPage)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		for _, i := range invitations {
+			ur, err := userInvitationResource(i.Email, parentResourceID)
+			if err != nil {
+				return nil, "", nil, fmt.Errorf("calendly-connector: failed to create user invitation resource: %w", err)
+			}
+
+			rv = append(rv, ur)
+		}
+
+	case userResourceType.Id:
+		pgVars := calendly.NewPaginationVars(ResourcesPageSize, page)
+		users, nextPage, err := o.client.ListUsersUnderOrg(ctx, parentResourceID.Resource, pgVars, nil)
+		if err != nil {
+			return nil, "", nil, fmt.Errorf("calendly-connector: failed to list users: %w", err)
+		}
+
+		err = bag.Next(nextPage)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		for _, u := range users {
+			ur, err := userResource(u.User, parentResourceID)
+			if err != nil {
+				return nil, "", nil, fmt.Errorf("calendly-connector: failed to create user resource: %w", err)
+			}
+
+			rv = append(rv, ur)
+		}
+
+	default:
+		return nil, "", nil, fmt.Errorf("calendly-connector: unknown resource type: %s", bag.ResourceTypeID())
 	}
 
-	next, err := bag.NextToken(nextPage)
+	next, err := bag.Marshal()
 	if err != nil {
 		return nil, "", nil, err
 	}

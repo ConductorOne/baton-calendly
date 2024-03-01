@@ -15,7 +15,9 @@ import (
 const (
 	BaseHost = "api.calendly.com"
 
-	OrgUsersEndpoint = "/organization_memberships"
+	OrgUsersEndpoint      = "/organization_memberships"
+	OrgMembershipEndpoint = "/organization_memberships/%s"
+	OrgInvitesEndpoint    = "/invitations"
 )
 
 type Client struct {
@@ -45,6 +47,16 @@ func NewPaginationVars(count int, next string) *PaginationVars {
 	}
 }
 
+type FilterVars struct {
+	Email string `json:"email"`
+}
+
+func NewFilterVars(email string) *FilterVars {
+	return &FilterVars{
+		Email: email,
+	}
+}
+
 type ListResponse[T any] struct {
 	Collection []T             `json:"collection"`
 	Pagination *PaginationVars `json:"pagination"`
@@ -65,35 +77,32 @@ func (c *Client) prepareURL(path string) *url.URL {
 	return &u
 }
 
-func (c *Client) prepareQuery(pgVars *PaginationVars) *url.Values {
+func (c *Client) prepareQuery(vals *url.Values, pgVars *PaginationVars) {
 	if pgVars == nil {
-		return nil
+		return
 	}
 
-	q := &url.Values{}
 	if pgVars.Count > 0 {
-		q.Set("count", fmt.Sprintf("%d", pgVars.Count))
+		vals.Set("count", fmt.Sprintf("%d", pgVars.Count))
 	}
 
 	if pgVars.Next != "" {
-		q.Set("page_token", pgVars.Next)
+		vals.Set("page_token", pgVars.Next)
 	}
-
-	return q
 }
 
-func (c *Client) ListUsersUnderOrg(ctx context.Context, orgURI string, pgVars *PaginationVars) ([]OrgMembership, string, error) {
+func (c *Client) ListUsersUnderOrg(ctx context.Context, orgURI string, pgVars *PaginationVars, filterVars *FilterVars) ([]OrgMembership, string, error) {
 	u := c.prepareURL(OrgUsersEndpoint)
-	queryParams := c.prepareQuery(pgVars)
+	queryParams := &url.Values{}
+	c.prepareQuery(queryParams, pgVars)
 	queryParams.Set("organization", orgURI)
 
-	var res ListResponse[OrgMembership]
-	req, err := c.createRequest(ctx, http.MethodGet, u, nil, queryParams)
-	if err != nil {
-		return nil, "", err
+	if filterVars != nil {
+		queryParams.Set("email", filterVars.Email)
 	}
 
-	err = c.get(req, &res)
+	var res ListResponse[OrgMembership]
+	err := c.get(ctx, u, &res, queryParams)
 	if err != nil {
 		return nil, "", err
 	}
@@ -109,12 +118,7 @@ func (c *Client) GetOrgDetails(ctx context.Context, orgURI string) (*Organizatio
 		return nil, err
 	}
 
-	req, err := c.createRequest(ctx, http.MethodGet, u, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.get(req, &res)
+	err = c.get(ctx, u, &res, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -122,8 +126,115 @@ func (c *Client) GetOrgDetails(ctx context.Context, orgURI string) (*Organizatio
 	return &res.Resource, nil
 }
 
-func (c *Client) get(req *http.Request, response interface{}) error {
+func (c *Client) RemoveOrgMember(ctx context.Context, membershipID string) error {
+	u := c.prepareURL(fmt.Sprintf(OrgMembershipEndpoint, membershipID))
+
+	return c.delete(ctx, u, nil)
+}
+
+type InviteBody struct {
+	Email string `json:"email"`
+}
+
+func (c *Client) InviteOrgMember(ctx context.Context, orgURI string, email string) error {
+	path, err := url.JoinPath(orgURI, OrgInvitesEndpoint)
+	if err != nil {
+		return err
+	}
+
+	u, err := url.Parse(path)
+	if err != nil {
+		return err
+	}
+
+	body := &InviteBody{
+		Email: email,
+	}
+
+	return c.post(ctx, u, body, nil)
+}
+
+func (c *Client) ListUserInvitations(ctx context.Context, orgURI string, pgVars *PaginationVars, filterVars *FilterVars) ([]Invitation, string, error) {
+	path, err := url.JoinPath(orgURI, OrgInvitesEndpoint)
+	if err != nil {
+		return nil, "", err
+	}
+
+	u, err := url.Parse(path)
+	if err != nil {
+		return nil, "", err
+	}
+
+	queryParams := &url.Values{}
+	c.prepareQuery(queryParams, pgVars)
+	queryParams.Set("status", "pending")
+
+	if filterVars != nil {
+		queryParams.Set("email", filterVars.Email)
+	}
+
+	var res ListResponse[Invitation]
+	err = c.get(ctx, u, &res, queryParams)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return res.Collection, res.Pagination.Next, nil
+}
+
+func (c *Client) RemoveUserInvitation(ctx context.Context, orgURI, invitationID string) error {
+	path, err := url.JoinPath(orgURI, OrgInvitesEndpoint, invitationID)
+	if err != nil {
+		return err
+	}
+
+	u, err := url.Parse(path)
+	if err != nil {
+		return err
+	}
+
+	return c.delete(ctx, u, nil)
+}
+
+func (c *Client) get(ctx context.Context, urlAddress *url.URL, response interface{}, queryParams *url.Values) error {
+	req, err := c.createRequest(ctx, http.MethodGet, urlAddress, nil, queryParams)
+	if err != nil {
+		return err
+	}
+
 	resp, err := c.wrapper.Do(req, uhttp.WithJSONResponse(response), WithErrorResponse(&ErrorResponse{}))
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	return nil
+}
+
+func (c *Client) delete(ctx context.Context, urlAddress *url.URL, queryParams *url.Values) error {
+	req, err := c.createRequest(ctx, http.MethodDelete, urlAddress, nil, queryParams)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.wrapper.Do(req, WithErrorResponse(&ErrorResponse{}))
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	return nil
+}
+
+func (c *Client) post(ctx context.Context, urlAddress *url.URL, body interface{}, queryParams *url.Values) error {
+	req, err := c.createRequest(ctx, http.MethodPost, urlAddress, body, queryParams)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.wrapper.Do(req, WithErrorResponse(&ErrorResponse{}))
 	if err != nil {
 		return err
 	}
