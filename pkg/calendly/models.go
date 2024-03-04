@@ -6,6 +6,7 @@ type User struct {
 	FullName  string `json:"name"`
 	Slug      string `json:"slug"`
 	CreatedAt string `json:"created_at"`
+	OrgURI    string `json:"current_organization"`
 }
 
 type OrgMembership struct {

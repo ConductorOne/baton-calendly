@@ -15,13 +15,12 @@ import (
 
 type Calendly struct {
 	client *calendly.Client
-	orgURI string
 }
 
 // ResourceSyncers returns a ResourceSyncer for each resource type that should be synced from the upstream service.
 func (c *Calendly) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		newOrgBuilder(c.client, c.orgURI),
+		newOrgBuilder(c.client),
 		newUserBuilder(c.client),
 	}
 }
@@ -43,7 +42,12 @@ func (c *Calendly) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) 
 // Validate is called to ensure that the connector is properly configured. It should exercise any API credentials
 // to be sure that they are valid.
 func (c *Calendly) Validate(ctx context.Context) (annotations.Annotations, error) {
-	_, err := c.client.GetOrgDetails(ctx, c.orgURI)
+	u, err := c.client.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "calendly-connector: failed to validate credentials")
+	}
+
+	_, err = c.client.GetOrgDetails(ctx, u.OrgURI)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "calendly-connector: failed to validate credentials")
 	}
@@ -52,7 +56,7 @@ func (c *Calendly) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns a new instance of the connector.
-func New(ctx context.Context, auth uhttp.AuthCredentials, orgURI string) (*Calendly, error) {
+func New(ctx context.Context, auth uhttp.AuthCredentials) (*Calendly, error) {
 	httpClient, err := auth.GetClient(ctx)
 	if err != nil {
 		return nil, err
@@ -60,6 +64,5 @@ func New(ctx context.Context, auth uhttp.AuthCredentials, orgURI string) (*Calen
 
 	return &Calendly{
 		client: calendly.NewClient(httpClient),
-		orgURI: orgURI,
 	}, nil
 }

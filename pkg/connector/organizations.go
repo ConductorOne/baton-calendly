@@ -36,8 +36,8 @@ var OrgRoles = []string{
 }
 
 type orgBuilder struct {
-	client *calendly.Client
-	URI    string
+	client       *calendly.Client
+	resourceType *v2.ResourceType
 }
 
 func (o *orgBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
@@ -67,7 +67,12 @@ func orgResource(org *calendly.Organization) (*v2.Resource, error) {
 func (o *orgBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	var rv []*v2.Resource
 
-	orgDetails, err := o.client.GetOrgDetails(ctx, o.URI)
+	u, err := o.client.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("calendly-connector: failed to get current user details: %w", err)
+	}
+
+	orgDetails, err := o.client.GetOrgDetails(ctx, u.OrgURI)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("calendly-connector: failed to get org details: %w", err)
 	}
@@ -128,7 +133,7 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 
 	case InvitationsType:
 		pgVars := calendly.NewPaginationVars(ResourcesPageSize, page)
-		invitations, nextPage, err := o.client.ListUserInvitations(ctx, o.URI, pgVars, nil)
+		invitations, nextPage, err := o.client.ListUserInvitations(ctx, resource.Id.Resource, pgVars, nil)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("calendly-connector: failed to list org invitations: %w", err)
 		}
@@ -210,7 +215,7 @@ func (o *orgBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlem
 		return nil, status.Error(codes.InvalidArgument, "calendly-connector: only user role can be granted in organization")
 	}
 
-	err := o.client.InviteOrgMember(ctx, o.URI, principal.Id.Resource)
+	err := o.client.InviteOrgMember(ctx, principal.ParentResourceId.Resource, principal.Id.Resource)
 	if err != nil {
 		return nil, fmt.Errorf("calendly-connector: failed to invite user to org: %w", err)
 	}
@@ -249,7 +254,7 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 	}
 
 	if entitlement.Slug == OrgUserEntitlement {
-		memberships, _, err := o.client.ListUsersUnderOrg(ctx, o.URI, nil, calendly.NewFilterVars(principal.DisplayName))
+		memberships, _, err := o.client.ListUsersUnderOrg(ctx, principal.ParentResourceId.Resource, nil, calendly.NewFilterVars(principal.DisplayName))
 		if err != nil {
 			return nil, fmt.Errorf("calendly-connector: failed to list users in org: %w", err)
 		}
@@ -273,7 +278,7 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 	}
 
 	if entitlement.Slug == OrgPendingUserEntitlement {
-		invitations, _, err := o.client.ListUserInvitations(ctx, o.URI, nil, calendly.NewFilterVars(principal.DisplayName))
+		invitations, _, err := o.client.ListUserInvitations(ctx, principal.ParentResourceId.Resource, nil, calendly.NewFilterVars(principal.DisplayName))
 		if err != nil {
 			return nil, fmt.Errorf("calendly-connector: failed to list org invitations: %w", err)
 		}
@@ -285,7 +290,7 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 		// do not throw error in case of duplicates, just take the first one
 		invitationURI := invitations[0].ID
 		invitationID := parseResourceID(invitationURI)
-		err = o.client.RemoveUserInvitation(ctx, o.URI, invitationID)
+		err = o.client.RemoveUserInvitation(ctx, principal.ParentResourceId.Resource, invitationID)
 		if err != nil {
 			return nil, fmt.Errorf("calendly-connector: failed to remove user invitation: %w", err)
 		}
@@ -296,9 +301,9 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 	return nil, nil
 }
 
-func newOrgBuilder(client *calendly.Client, uri string) *orgBuilder {
+func newOrgBuilder(client *calendly.Client) *orgBuilder {
 	return &orgBuilder{
-		client: client,
-		URI:    uri,
+		client:       client,
+		resourceType: orgResourceType,
 	}
 }

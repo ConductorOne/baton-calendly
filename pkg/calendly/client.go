@@ -18,6 +18,8 @@ const (
 	OrgUsersEndpoint      = "/organization_memberships"
 	OrgMembershipEndpoint = "/organization_memberships/%s"
 	OrgInvitesEndpoint    = "/invitations"
+
+	UserEndpoint = "/users/%s"
 )
 
 type Client struct {
@@ -89,6 +91,18 @@ func (c *Client) prepareQuery(vals *url.Values, pgVars *PaginationVars) {
 	if pgVars.Next != "" {
 		vals.Set("page_token", pgVars.Next)
 	}
+}
+
+func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
+	u := c.prepareURL(fmt.Sprintf(UserEndpoint, "me"))
+
+	var res SingleResponse[User]
+	err := c.get(ctx, u, &res, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &res.Resource, nil
 }
 
 func (c *Client) ListUsersUnderOrg(ctx context.Context, orgURI string, pgVars *PaginationVars, filterVars *FilterVars) ([]OrgMembership, string, error) {
