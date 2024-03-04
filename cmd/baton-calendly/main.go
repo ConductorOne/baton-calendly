@@ -37,10 +37,18 @@ func main() {
 	}
 }
 
+func prepareAuth(cfg *config) uhttp.AuthCredentials {
+	if cfg.Token != "" {
+		return uhttp.NewBearerAuth(cfg.Token)
+	}
+
+	return &uhttp.NoAuth{}
+}
+
 func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
+	auth := prepareAuth(cfg)
 
-	auth := uhttp.NewBearerAuth(cfg.Token)
 	cb, err := connector.New(ctx, auth, cfg.OrgURI)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))

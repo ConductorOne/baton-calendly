@@ -53,17 +53,16 @@ func userResource(user *calendly.User, parentId *v2.ResourceId) (*v2.Resource, e
 		"slug":      user.Slug,
 	}
 
-	created, err := time.Parse(time.RFC3339, user.CreatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse user created_at: %w", err)
-	}
-
 	userOptions := []rs.UserTraitOption{
 		rs.WithUserProfile(profile),
 		rs.WithEmail(user.Email, true),
 		rs.WithUserLogin(user.Email),
-		rs.WithCreatedAt(created),
 		rs.WithStatus(v2.UserTrait_Status_STATUS_ENABLED),
+	}
+
+	created, err := time.Parse(time.RFC3339, user.CreatedAt)
+	if err == nil {
+		userOptions = append(userOptions, rs.WithCreatedAt(created))
 	}
 
 	resource, err := rs.NewUserResource(

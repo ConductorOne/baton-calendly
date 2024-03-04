@@ -69,12 +69,12 @@ func (o *orgBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId, 
 
 	orgDetails, err := o.client.GetOrgDetails(ctx, o.URI)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("snyk-connector: failed to get org details: %w", err)
+		return nil, "", nil, fmt.Errorf("calendly-connector: failed to get org details: %w", err)
 	}
 
 	or, err := orgResource(orgDetails)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("snyk-connector: failed to create org resource: %w", err)
+		return nil, "", nil, fmt.Errorf("calendly-connector: failed to create org resource: %w", err)
 	}
 
 	rv = append(rv, or)
@@ -113,7 +113,7 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 
 	bag, page, err := parsePageToken(pToken.Token, resource.Id)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("snyk-connector: failed to parse page token: %w", err)
+		return nil, "", nil, fmt.Errorf("calendly-connector: failed to parse page token: %w", err)
 	}
 
 	switch bag.ResourceTypeID() {
@@ -130,7 +130,7 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 		pgVars := calendly.NewPaginationVars(ResourcesPageSize, page)
 		invitations, nextPage, err := o.client.ListUserInvitations(ctx, o.URI, pgVars, nil)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("snyk-connector: failed to list org invitations: %w", err)
+			return nil, "", nil, fmt.Errorf("calendly-connector: failed to list org invitations: %w", err)
 		}
 
 		err = bag.Next(nextPage)
@@ -141,7 +141,7 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 		for _, i := range invitations {
 			userId, err := rs.NewResourceID(userResourceType, i.Email)
 			if err != nil {
-				return nil, "", nil, fmt.Errorf("snyk-connector: failed to create user resource id: %w", err)
+				return nil, "", nil, fmt.Errorf("calendly-connector: failed to create user resource id: %w", err)
 			}
 
 			rv = append(rv, grant.NewGrant(resource, OrgPendingUserEntitlement, userId))
@@ -151,7 +151,7 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 		pgVars := calendly.NewPaginationVars(ResourcesPageSize, page)
 		memberships, nextPage, err := o.client.ListUsersUnderOrg(ctx, resource.Id.Resource, pgVars, nil)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("snyk-connector: failed to list users in org: %w", err)
+			return nil, "", nil, fmt.Errorf("calendly-connector: failed to list users in org: %w", err)
 		}
 
 		err = bag.Next(nextPage)
@@ -162,19 +162,19 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 		for _, m := range memberships {
 			// check for valid role
 			if !slices.Contains(OrgRoles, m.Role) {
-				return nil, "", nil, fmt.Errorf("snyk-connector: role %s not found", m.Role)
+				return nil, "", nil, fmt.Errorf("calendly-connector: role %s not found", m.Role)
 			}
 
 			userId, err := rs.NewResourceID(userResourceType, m.User.ID)
 			if err != nil {
-				return nil, "", nil, fmt.Errorf("snyk-connector: failed to create user resource id: %w", err)
+				return nil, "", nil, fmt.Errorf("calendly-connector: failed to create user resource id: %w", err)
 			}
 
 			rv = append(rv, grant.NewGrant(resource, m.Role, userId))
 		}
 
 	default:
-		return nil, "", nil, fmt.Errorf("snyk-connector: invalid page token")
+		return nil, "", nil, fmt.Errorf("calendly-connector: invalid page token")
 	}
 
 	next, err := bag.Marshal()
@@ -212,7 +212,7 @@ func (o *orgBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlem
 
 	err := o.client.InviteOrgMember(ctx, o.URI, principal.Id.Resource)
 	if err != nil {
-		return nil, fmt.Errorf("snyk-connector: failed to invite user to org: %w", err)
+		return nil, fmt.Errorf("calendly-connector: failed to invite user to org: %w", err)
 	}
 
 	return nil, nil
@@ -251,7 +251,7 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 	if entitlement.Slug == OrgUserEntitlement {
 		memberships, _, err := o.client.ListUsersUnderOrg(ctx, o.URI, nil, calendly.NewFilterVars(principal.DisplayName))
 		if err != nil {
-			return nil, fmt.Errorf("snyk-connector: failed to list users in org: %w", err)
+			return nil, fmt.Errorf("calendly-connector: failed to list users in org: %w", err)
 		}
 
 		if len(memberships) == 0 {
@@ -266,7 +266,7 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 		membershipID := parseResourceID(membershipURI)
 		err = o.client.RemoveOrgMember(ctx, membershipID)
 		if err != nil {
-			return nil, fmt.Errorf("snyk-connector: failed to remove user from org: %w", err)
+			return nil, fmt.Errorf("calendly-connector: failed to remove user from org: %w", err)
 		}
 
 		return nil, nil
@@ -275,7 +275,7 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 	if entitlement.Slug == OrgPendingUserEntitlement {
 		invitations, _, err := o.client.ListUserInvitations(ctx, o.URI, nil, calendly.NewFilterVars(principal.DisplayName))
 		if err != nil {
-			return nil, fmt.Errorf("snyk-connector: failed to list org invitations: %w", err)
+			return nil, fmt.Errorf("calendly-connector: failed to list org invitations: %w", err)
 		}
 
 		if len(invitations) == 0 {
@@ -287,7 +287,7 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 		invitationID := parseResourceID(invitationURI)
 		err = o.client.RemoveUserInvitation(ctx, o.URI, invitationID)
 		if err != nil {
-			return nil, fmt.Errorf("snyk-connector: failed to remove user invitation: %w", err)
+			return nil, fmt.Errorf("calendly-connector: failed to remove user invitation: %w", err)
 		}
 
 		return nil, nil
