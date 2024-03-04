@@ -43,3 +43,13 @@ func parseResourceID(uri string) string {
 
 	return uri[index+1:]
 }
+
+func WithRateLimitAnnotations(rlDesc ...*v2.RateLimitDescription) annotations.Annotations {
+	annos := annotations.Annotations{}
+
+	for _, rl := range rlDesc {
+		annos.Append(rl)
+	}
+
+	return annos
+}

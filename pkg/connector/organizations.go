@@ -67,12 +67,12 @@ func orgResource(org *calendly.Organization) (*v2.Resource, error) {
 func (o *orgBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	var rv []*v2.Resource
 
-	u, err := o.client.GetCurrentUser(ctx)
+	u, rlu, err := o.client.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("calendly-connector: failed to get current user details: %w", err)
 	}
 
-	orgDetails, err := o.client.GetOrgDetails(ctx, u.OrgURI)
+	orgDetails, rlo, err := o.client.GetOrgDetails(ctx, u.OrgURI)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("calendly-connector: failed to get org details: %w", err)
 	}
@@ -84,7 +84,7 @@ func (o *orgBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId, 
 
 	rv = append(rv, or)
 
-	return rv, "", nil, nil
+	return rv, "", WithRateLimitAnnotations(rlu, rlo), nil
 }
 
 // Entitlements returns slice of membership and permission entitlements for the org.
@@ -121,6 +121,8 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 		return nil, "", nil, fmt.Errorf("calendly-connector: failed to parse page token: %w", err)
 	}
 
+	var rldata []*v2.RateLimitDescription
+
 	switch bag.ResourceTypeID() {
 	case resource.Id.ResourceType:
 		bag.Pop()
@@ -133,11 +135,12 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 
 	case InvitationsType:
 		pgVars := calendly.NewPaginationVars(ResourcesPageSize, page)
-		invitations, nextPage, err := o.client.ListUserInvitations(ctx, resource.Id.Resource, pgVars, nil)
+		invitations, nextPage, rli, err := o.client.ListUserInvitations(ctx, resource.Id.Resource, pgVars, nil)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("calendly-connector: failed to list org invitations: %w", err)
 		}
 
+		rldata = append(rldata, rli)
 		err = bag.Next(nextPage)
 		if err != nil {
 			return nil, "", nil, err
@@ -187,7 +190,7 @@ func (o *orgBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *
 		return nil, "", nil, err
 	}
 
-	return rv, next, nil, nil
+	return rv, next, WithRateLimitAnnotations(rldata...), nil
 }
 
 // Grant method is only used for user invitations to the organization.
@@ -215,12 +218,12 @@ func (o *orgBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlem
 		return nil, status.Error(codes.InvalidArgument, "calendly-connector: only user role can be granted in organization")
 	}
 
-	err := o.client.InviteOrgMember(ctx, principal.ParentResourceId.Resource, principal.Id.Resource)
+	rli, err := o.client.InviteOrgMember(ctx, principal.ParentResourceId.Resource, principal.Id.Resource)
 	if err != nil {
 		return nil, fmt.Errorf("calendly-connector: failed to invite user to org: %w", err)
 	}
 
-	return nil, nil
+	return WithRateLimitAnnotations(rli), nil
 }
 
 // Revoke method is only used for canceling invitations and removing users from the organization.
@@ -269,16 +272,16 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 
 		membershipURI := memberships[0].ID
 		membershipID := parseResourceID(membershipURI)
-		err = o.client.RemoveOrgMember(ctx, membershipID)
+		rlo, err := o.client.RemoveOrgMember(ctx, membershipID)
 		if err != nil {
 			return nil, fmt.Errorf("calendly-connector: failed to remove user from org: %w", err)
 		}
 
-		return nil, nil
+		return WithRateLimitAnnotations(rlo), nil
 	}
 
 	if entitlement.Slug == OrgPendingUserEntitlement {
-		invitations, _, err := o.client.ListUserInvitations(ctx, principal.ParentResourceId.Resource, nil, calendly.NewFilterVars(principal.DisplayName))
+		invitations, _, rli, err := o.client.ListUserInvitations(ctx, principal.ParentResourceId.Resource, nil, calendly.NewFilterVars(principal.DisplayName))
 		if err != nil {
 			return nil, fmt.Errorf("calendly-connector: failed to list org invitations: %w", err)
 		}
@@ -290,12 +293,12 @@ func (o *orgBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.A
 		// do not throw error in case of duplicates, just take the first one
 		invitationURI := invitations[0].ID
 		invitationID := parseResourceID(invitationURI)
-		err = o.client.RemoveUserInvitation(ctx, principal.ParentResourceId.Resource, invitationID)
+		rlri, err := o.client.RemoveUserInvitation(ctx, principal.ParentResourceId.Resource, invitationID)
 		if err != nil {
 			return nil, fmt.Errorf("calendly-connector: failed to remove user invitation: %w", err)
 		}
 
-		return nil, nil
+		return WithRateLimitAnnotations(rli, rlri), nil
 	}
 
 	return nil, nil

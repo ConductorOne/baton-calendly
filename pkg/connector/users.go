@@ -96,6 +96,7 @@ func (o *userBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId,
 	}
 
 	var rv []*v2.Resource
+	var rldata []*v2.RateLimitDescription
 
 	switch bag.ResourceTypeID() {
 	case orgResourceType.Id:
@@ -109,11 +110,12 @@ func (o *userBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId,
 
 	case InvitationsType:
 		pgVars := calendly.NewPaginationVars(ResourcesPageSize, page)
-		invitations, nextPage, err := o.client.ListUserInvitations(ctx, parentResourceID.Resource, pgVars, nil)
+		invitations, nextPage, rli, err := o.client.ListUserInvitations(ctx, parentResourceID.Resource, pgVars, nil)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("calendly-connector: failed to list org invitations: %w", err)
 		}
 
+		rldata = append(rldata, rli)
 		err = bag.Next(nextPage)
 		if err != nil {
 			return nil, "", nil, err
@@ -158,7 +160,7 @@ func (o *userBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId,
 		return nil, "", nil, err
 	}
 
-	return rv, next, nil, nil
+	return rv, next, WithRateLimitAnnotations(rldata...), nil
 }
 
 // Entitlements always returns an empty slice for users.

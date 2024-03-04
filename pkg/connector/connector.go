@@ -42,12 +42,12 @@ func (c *Calendly) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) 
 // Validate is called to ensure that the connector is properly configured. It should exercise any API credentials
 // to be sure that they are valid.
 func (c *Calendly) Validate(ctx context.Context) (annotations.Annotations, error) {
-	u, err := c.client.GetCurrentUser(ctx)
+	u, _, err := c.client.GetCurrentUser(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "calendly-connector: failed to validate credentials")
 	}
 
-	_, err = c.client.GetOrgDetails(ctx, u.OrgURI)
+	_, _, err = c.client.GetOrgDetails(ctx, u.OrgURI)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "calendly-connector: failed to validate credentials")
 	}
