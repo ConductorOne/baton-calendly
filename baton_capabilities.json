@@ -3,10 +3,25 @@
   "resourceTypeCapabilities":  [
     {
       "resourceType":  {
+        "id":  "org",
+        "displayName":  "Organization"
+      },
+      "capabilities":  [
+        "CAPABILITY_SYNC",
+        "CAPABILITY_PROVISION"
+      ]
+    },
+    {
+      "resourceType":  {
         "id":  "user",
         "displayName":  "User",
         "traits":  [
           "TRAIT_USER"
+        ],
+        "annotations":  [
+          {
+            "@type":  "type.googleapis.com/c1.connector.v2.SkipEntitlementsAndGrants"
+          }
         ]
       },
       "capabilities":  [
