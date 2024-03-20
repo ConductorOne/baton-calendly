@@ -56,7 +56,7 @@ func (c *Calendly) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns a new instance of the connector.
-func New(ctx context.Context, auth uhttp.AuthCredentials) (*Calendly, error) {
+func New(ctx context.Context, auth *uhttp.BearerAuth) (*Calendly, error) {
 	httpClient, err := auth.GetClient(ctx)
 	if err != nil {
 		return nil, err

@@ -37,12 +37,12 @@ func main() {
 	}
 }
 
-func prepareAuth(cfg *config) uhttp.AuthCredentials {
+func prepareAuth(cfg *config) *uhttp.BearerAuth {
 	if cfg.Token != "" {
 		return uhttp.NewBearerAuth(cfg.Token)
 	}
 
-	return &uhttp.NoAuth{}
+	return &uhttp.BearerAuth{}
 }
 
 func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, error) {
