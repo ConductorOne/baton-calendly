@@ -9,6 +9,7 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -56,7 +57,28 @@ func (c *Calendly) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns a new instance of the connector.
-func New(ctx context.Context, httpClient *http.Client) (*Calendly, error) {
+func New(ctx context.Context, token string) (*Calendly, error) {
+	var (
+		httpClient *http.Client
+		err        error
+	)
+	if token != "" {
+		httpClient, err = uhttp.NewBearerAuth(token).GetClient(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return &Calendly{
+			client: calendly.NewClient(httpClient),
+		}, nil
+	}
+
+	auth := &uhttp.NoAuth{}
+	httpClient, err = auth.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Calendly{
 		client: calendly.NewClient(httpClient),
 	}, nil
