@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/conductorone/baton-sdk/pkg/cli"
@@ -37,19 +38,47 @@ func main() {
 	}
 }
 
-func prepareAuth(cfg *config) *uhttp.BearerAuth {
+func prepareAuth(cfg *config) any {
 	if cfg.Token != "" {
 		return uhttp.NewBearerAuth(cfg.Token)
 	}
 
-	return &uhttp.BearerAuth{}
+	return &uhttp.NoAuth{}
+}
+
+func getClient(ctx context.Context, cfg *config, auth any) (*http.Client, error) {
+	var (
+		httpClient *http.Client
+		err        error
+	)
+	if cfg.Token != "" {
+		authBearer := auth.(*uhttp.BearerAuth)
+		httpClient, err = authBearer.GetClient(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return httpClient, nil
+	}
+
+	authCred := auth.(uhttp.AuthCredentials)
+	httpClient, err = authCred.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return httpClient, nil
 }
 
 func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 	auth := prepareAuth(cfg)
+	httpClient, err := getClient(ctx, cfg, auth)
+	if err != nil {
+		return nil, err
+	}
 
-	cb, err := connector.New(ctx, auth)
+	cb, err := connector.New(ctx, httpClient)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err
