@@ -62,21 +62,16 @@ func New(ctx context.Context, token string) (*Calendly, error) {
 		httpClient *http.Client
 		err        error
 	)
-	if token != "" {
+	if token == "" {
+		httpClient, err = (&uhttp.NoAuth{}).GetClient(ctx)
+		if err != nil {
+			return nil, err
+		}
+	} else {
 		httpClient, err = uhttp.NewBearerAuth(token).GetClient(ctx)
 		if err != nil {
 			return nil, err
 		}
-
-		return &Calendly{
-			client: calendly.NewClient(httpClient),
-		}, nil
-	}
-
-	auth := &uhttp.NoAuth{}
-	httpClient, err = auth.GetClient(ctx)
-	if err != nil {
-		return nil, err
 	}
 
 	return &Calendly{
