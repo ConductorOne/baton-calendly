@@ -8,7 +8,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/types"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 
@@ -37,19 +36,9 @@ func main() {
 	}
 }
 
-func prepareAuth(cfg *config) uhttp.AuthCredentials {
-	if cfg.Token != "" {
-		return uhttp.NewBearerAuth(cfg.Token)
-	}
-
-	return &uhttp.NoAuth{}
-}
-
 func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
-	auth := prepareAuth(cfg)
-
-	cb, err := connector.New(ctx, auth)
+	cb, err := connector.New(ctx, cfg.Token)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

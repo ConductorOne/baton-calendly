@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"io"
+	"net/http"
 
 	"github.com/conductorone/baton-calendly/pkg/calendly"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -56,10 +57,21 @@ func (c *Calendly) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns a new instance of the connector.
-func New(ctx context.Context, auth uhttp.AuthCredentials) (*Calendly, error) {
-	httpClient, err := auth.GetClient(ctx)
-	if err != nil {
-		return nil, err
+func New(ctx context.Context, token string) (*Calendly, error) {
+	var (
+		httpClient *http.Client
+		err        error
+	)
+	if token == "" {
+		httpClient, err = (&uhttp.NoAuth{}).GetClient(ctx)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		httpClient, err = uhttp.NewBearerAuth(token).GetClient(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Calendly{

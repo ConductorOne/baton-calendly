@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -284,7 +285,7 @@ func (c *Client) createRequest(ctx context.Context, method string, urlAddress *u
 }
 
 func WithRatelimitData(resource *v2.RateLimitDescription) uhttp.DoOption {
-	return func(resp *http.Response) error {
+	return func(resp *uhttp.WrapperResponse) error {
 		rl, err := extractRateLimitData(resp)
 		if err != nil {
 			return err
@@ -301,10 +302,11 @@ func WithRatelimitData(resource *v2.RateLimitDescription) uhttp.DoOption {
 }
 
 func WithErrorResponse(resource *ErrorResponse) uhttp.DoOption {
-	return func(resp *http.Response) error {
+	return func(resp *uhttp.WrapperResponse) error {
 		if resp.StatusCode >= 300 {
+			body := strings.NewReader(string(resp.Body))
 			// Decode the JSON response body into the ErrorResponse struct
-			if err := json.NewDecoder(resp.Body).Decode(&resource); err != nil {
+			if err := json.NewDecoder(body).Decode(&resource); err != nil {
 				return status.Error(codes.Unknown, "Request failed with unknown error")
 			}
 
@@ -318,7 +320,7 @@ func WithErrorResponse(resource *ErrorResponse) uhttp.DoOption {
 	}
 }
 
-func extractRateLimitData(resp *http.Response) (*v2.RateLimitDescription, error) {
+func extractRateLimitData(resp *uhttp.WrapperResponse) (*v2.RateLimitDescription, error) {
 	if resp == nil {
 		return nil, nil
 	}
