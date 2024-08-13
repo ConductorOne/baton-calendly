@@ -74,8 +74,10 @@ Flags:
   -h, --help                   help for baton-calendly
       --log-format string      The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
       --log-level string       The log level: debug, info, warn, error ($BATON_LOG_LEVEL) (default "info")
-  -p, --provisioning           This must be set in order for provisioning actions to be enabled. ($BATON_PROVISIONING)
-      --token string           Personal Access Token used to authenticate with the Calendly API. ($BATON_TOKEN)
+  -p, --provisioning           This must be set in order for provisioning actions to be enabled ($BATON_PROVISIONING)
+      --skip-full-sync         This must be set to skip a full sync ($BATON_SKIP_FULL_SYNC)
+      --ticketing              This must be set to enable ticketing support ($BATON_TICKETING)
+      --token string           required: Personal Access Token used to authenticate with the Calendly API. ($BATON_TOKEN)
   -v, --version                version for baton-calendly
 
 Use "baton-calendly [command] --help" for more information about a command.
