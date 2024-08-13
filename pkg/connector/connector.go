@@ -10,6 +10,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -17,6 +18,10 @@ import (
 type Calendly struct {
 	client *calendly.Client
 }
+
+const (
+	Token = "token"
+)
 
 // ResourceSyncers returns a ResourceSyncer for each resource type that should be synced from the upstream service.
 func (c *Calendly) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
@@ -57,9 +62,10 @@ func (c *Calendly) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns a new instance of the connector.
-func New(ctx context.Context, token string) (*Calendly, error) {
+func New(ctx context.Context, cfg *viper.Viper) (*Calendly, error) {
 	var (
 		httpClient *http.Client
+		token      = cfg.GetString(Token)
 		err        error
 	)
 	if token == "" {
