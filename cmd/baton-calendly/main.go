@@ -23,10 +23,10 @@ const (
 var (
 	Token               = field.StringField(connector.Token, field.WithRequired(true), field.WithDescription("Personal Access Token used to authenticate with the Calendly API."))
 	configurationFields = []field.SchemaField{Token}
-	ctx                 = context.Background()
 )
 
 func main() {
+	ctx := context.Background()
 	_, cmd, err := configSchema.DefineConfiguration(ctx,
 		connectorName,
 		getConnector,
