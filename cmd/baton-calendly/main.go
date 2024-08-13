@@ -21,8 +21,8 @@ const (
 )
 
 var (
-	Token               = field.StringField(connector.Token, field.WithRequired(true), field.WithDescription("Personal Access Token used to authenticate with the Calendly API."))
-	configurationFields = []field.SchemaField{Token}
+	token               = field.StringField(connector.Token, field.WithRequired(true), field.WithDescription("Personal Access Token used to authenticate with the Calendly API."))
+	configurationFields = []field.SchemaField{token}
 )
 
 func main() {
