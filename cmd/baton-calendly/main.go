@@ -18,11 +18,12 @@ import (
 const (
 	version       = "dev"
 	connectorName = "baton-calendly"
+	token         = "token"
 )
 
 var (
-	token               = field.StringField(connector.Token, field.WithRequired(true), field.WithDescription("Personal Access Token used to authenticate with the Calendly API."))
-	configurationFields = []field.SchemaField{token}
+	tokenField          = field.StringField(token, field.WithRequired(true), field.WithDescription("Personal Access Token used to authenticate with the Calendly API."))
+	configurationFields = []field.SchemaField{tokenField}
 )
 
 func main() {
@@ -47,7 +48,7 @@ func main() {
 
 func getConnector(ctx context.Context, cfg *viper.Viper) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
-	cb, err := connector.New(ctx, cfg)
+	cb, err := connector.New(ctx, cfg.GetString(token))
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err
