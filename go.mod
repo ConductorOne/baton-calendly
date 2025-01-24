@@ -3,7 +3,7 @@ module github.com/conductorone/baton-calendly
 go 1.22.0
 
 require (
-	github.com/conductorone/baton-sdk v0.2.18
+	github.com/conductorone/baton-sdk v0.2.25
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/spf13/viper v1.18.2
 	go.uber.org/zap v1.27.0
