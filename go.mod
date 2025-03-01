@@ -1,6 +1,6 @@
 module github.com/conductorone/baton-calendly
 
-go 1.23.4
+go 1.23
 
 toolchain go1.24.2
 
