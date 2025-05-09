@@ -8,7 +8,6 @@ import (
 	"github.com/conductorone/baton-calendly/pkg/calendly"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/helpers"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 )
@@ -44,7 +43,7 @@ func userInvitationResource(email string, parentID *v2.ResourceId) (*v2.Resource
 }
 
 func userResource(user *calendly.User, parentId *v2.ResourceId) (*v2.Resource, error) {
-	firstName, lastName := helpers.SplitFullName(user.FullName)
+	firstName, lastName := rs.SplitFullName(user.FullName)
 	profile := map[string]interface{}{
 		"user_id":   user.ID,
 		"email":     user.Email,
