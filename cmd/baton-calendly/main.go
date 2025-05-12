@@ -5,33 +5,23 @@ import (
 	"fmt"
 	"os"
 
+	cfg "github.com/conductorone/baton-calendly/pkg/config"
 	"github.com/conductorone/baton-calendly/pkg/connector"
 	configSchema "github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/field"
 	"github.com/conductorone/baton-sdk/pkg/types"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
-const (
-	version       = "dev"
-	connectorName = "baton-calendly"
-	token         = "token"
-)
-
-var (
-	tokenField          = field.StringField(token, field.WithRequired(true), field.WithDescription("Personal Access Token used to authenticate with the Calendly API."))
-	configurationFields = []field.SchemaField{tokenField}
-)
+const version = "dev"
 
 func main() {
 	ctx := context.Background()
 	_, cmd, err := configSchema.DefineConfiguration(ctx,
-		connectorName,
+		"baton-calendly",
 		getConnector,
-		field.NewConfiguration(configurationFields),
+		cfg.Config,
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -46,9 +36,12 @@ func main() {
 	}
 }
 
-func getConnector(ctx context.Context, cfg *viper.Viper) (types.ConnectorServer, error) {
+func getConnector(ctx context.Context, cc *cfg.Calendly) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
-	cb, err := connector.New(ctx, cfg.GetString(token))
+	if err := cfg.ValidateConfig(cc); err != nil {
+		return nil, err
+	}
+	cb, err := connector.New(ctx, cc.Token)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err
