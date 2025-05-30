@@ -47,6 +47,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELENG_GITHUB_TOKEN }}
           AC_PASSWORD: ${{ secrets.AC_PASSWORD }}
           AC_PROVIDER: ${{ secrets.AC_PROVIDER }}
+
   goreleaser-docker:
     needs: set-release-draft
     permissions:
