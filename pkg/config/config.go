@@ -6,14 +6,19 @@ import (
 
 var Token = field.StringField(
 	"token",
+	field.WithDisplayName("Personal access token"),
 	field.WithDescription("Personal Access Token used to authenticate with the Calendly API."),
 	field.WithRequired(true),
+	field.WithIsSecret(true),
 )
 
 //go:generate go run ./gen
-var Config = field.NewConfiguration([]field.SchemaField{
-	Token,
-})
+var Config = field.NewConfiguration(
+	[]field.SchemaField{Token},
+	field.WithConnectorDisplayName("Calendly"),
+	field.WithHelpUrl("/docs/baton/calendly"),
+	field.WithIconUrl("/static/app-icons/calendly.svg"),
+)
 
 // ValidateConfig is run after the configuration is loaded, and should return an
 // error if it isn't valid. Implementing this function is optional, it only
