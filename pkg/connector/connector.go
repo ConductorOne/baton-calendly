@@ -57,7 +57,7 @@ func (c *Calendly) Validate(ctx context.Context) (annotations.Annotations, error
 }
 
 // New returns a new instance of the connector.
-func New(ctx context.Context, token string) (*Calendly, error) {
+func New(ctx context.Context, token string, baseURL string) (*Calendly, error) {
 	var (
 		httpClient *http.Client
 		err        error
@@ -74,7 +74,12 @@ func New(ctx context.Context, token string) (*Calendly, error) {
 		}
 	}
 
+	client, err := calendly.NewClient(httpClient, baseURL)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Calendly{
-		client: calendly.NewClient(httpClient),
+		client: client,
 	}, nil
 }
