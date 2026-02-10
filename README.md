@@ -1,8 +1,8 @@
 ![Baton Logo](./docs/images/baton-logo.png)
 
-# `baton-calendly` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-calendly.svg)](https://pkg.go.dev/github.com/conductorone/baton-calendly) ![main ci](https://github.com/conductorone/baton-calendly/actions/workflows/main.yaml/badge.svg)
+# `baton-calendly` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-calendly.svg)](https://pkg.go.dev/github.com/conductorone/baton-calendly) ![verify](https://github.com/conductorone/baton-calendly/actions/workflows/verify.yaml/badge.svg)
 
-`baton-calendly` is a connector for Calendly built using the [Baton SDK](https://github.com/conductorone/baton-sdk). It communicates with the Calendly API, to sync data about Calendly organizations and users. 
+`baton-calendly` is a connector for Calendly built using the [Baton SDK](https://github.com/conductorone/baton-sdk). It communicates with the Calendly API, to sync data about Calendly organizations and users.
 
 Check out [Baton](https://github.com/conductorone/baton) to learn more about the project in general.
 
