@@ -15,6 +15,7 @@ var (
 	BaseURLField = field.StringField(
 		"base-url",
 		field.WithDescription("Override the Calendly API URL (for testing)"),
+		field.WithHidden(true),
 	)
 )
 
