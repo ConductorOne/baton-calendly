@@ -32,14 +32,24 @@ type Client struct {
 	baseURL *url.URL
 }
 
-func NewClient(httpClient *http.Client) *Client {
-	return &Client{
-		wrapper: uhttp.NewBaseHttpClient(httpClient),
-		baseURL: &url.URL{
+func NewClient(httpClient *http.Client, baseURL string) (*Client, error) {
+	var u *url.URL
+	if baseURL != "" {
+		var err error
+		u, err = url.Parse(baseURL)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		u = &url.URL{
 			Scheme: "https",
 			Host:   BaseHost,
-		},
+		}
 	}
+	return &Client{
+		wrapper: uhttp.NewBaseHttpClient(httpClient),
+		baseURL: u,
+	}, nil
 }
 
 type PaginationVars struct {

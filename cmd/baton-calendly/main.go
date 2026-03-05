@@ -41,7 +41,7 @@ func getConnector(ctx context.Context, cc *cfg.Calendly) (types.ConnectorServer,
 	if err := cfg.ValidateConfig(cc); err != nil {
 		return nil, err
 	}
-	cb, err := connector.New(ctx, cc.Token)
+	cb, err := connector.New(ctx, cc.Token, cc.BaseUrl)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

@@ -5,6 +5,7 @@ import "reflect"
 
 type Calendly struct {
 	Token string `mapstructure:"token"`
+	BaseUrl string `mapstructure:"base-url"`
 }
 
 func (c *Calendly) findFieldByTag(tagValue string) (any, bool) {
