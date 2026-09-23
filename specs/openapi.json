@@ -1,0 +1,380 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Calendly API (baton-calendly connector surface)",
+    "version": "1.0.0",
+    "description": "Describes only the Calendly endpoints baton-calendly calls. Scope is derived from pkg/calendly/client.go; response shapes are derived from the structs in pkg/calendly/models.go and settled against Calendly's published OpenAPI document at https://developer.calendly.com/openapi/calendly-api.yaml (accessed 2026-09-23).\n\nOnly the properties the connector's structs declare are modelled. Calendly's document describes more per resource; the omissions are deliberate — spec scope is connector scope.\n\nPaths are partly reconstructed. Calendly identifies every resource by an absolute URI (`https://api.calendly.com/organizations/{uuid}`), and the connector stores those URIs verbatim as its resource IDs. Three operations are therefore built by `url.Parse` or `url.JoinPath` on a stored URI rather than from a path template, and the templates below were recovered from Calendly's document.\n\nAuth: a Calendly personal access or OAuth token sent as `Authorization: Bearer` by uhttp.NewBearerAuth.\n\nPagination: list responses carry a `pagination` object; the connector reads `next_page_token` and replays it as the `page_token` query parameter alongside `count`. A null token ends the loop.\n\nBase URL: https://api.calendly.com by default, overridable via the connector's base-URL config."
+  },
+  "servers": [
+    { "url": "https://api.calendly.com", "description": "Calendly API v2. Default; overridable via the connector's base-url config." }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "tags": [
+    { "name": "users", "description": "The authenticated user." },
+    { "name": "organization", "description": "Organizations, their memberships, and pending invitations." }
+  ],
+  "paths": {
+    "/users/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "tags": ["users"],
+        "summary": "Get the authenticated user",
+        "description": "Called first on every sync to discover which organization the token belongs to (pkg/connector/organizations.go:70), and as the first half of the connector's credential-validation probe (pkg/connector/connector.go:46).\n\n`current_organization` is the organization URI that every other operation is scoped by — the connector stores it as its organization resource ID and feeds it back as the `organization` query parameter and as the base for the invitation paths. Parity-critical.\n\nThe path is built by formatting the literal `me` into the `/users/%s` template; the connector never fetches another user by ID.",
+        "externalDocs": { "url": "https://developer.calendly.com/api-docs/005832c83aeae-get-current-user" },
+        "responses": {
+          "200": {
+            "description": "The authenticated user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["resource"],
+                  "properties": { "resource": { "$ref": "#/components/schemas/User" } }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/organizations/{uuid}": {
+      "get": {
+        "operationId": "getOrganization",
+        "tags": ["organization"],
+        "summary": "Get an organization",
+        "description": "Builds the connector's single organization resource (pkg/connector/organizations.go:75) and completes the credential-validation probe (pkg/connector/connector.go:51).\n\nThe client does not format this path. It calls `url.Parse` on the `current_organization` URI from getCurrentUser and requests it directly, so the base-URL config does not apply to this operation — the host comes from whatever Calendly returned. The template here was recovered from Calendly's document.\n\nCalendly returns a `name` for multi-user organizations; the connector's struct does not declare it, so the organization resource is named from its URI instead.",
+        "externalDocs": { "url": "https://developer.calendly.com/api-docs/f6d97a56c8cfe-get-organization" },
+        "x-connector-url-source": "absolute URI from User.current_organization, not a formatted path",
+        "parameters": [
+          { "$ref": "#/components/parameters/OrgUuid" }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["resource"],
+                  "properties": { "resource": { "$ref": "#/components/schemas/Organization" } }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/organization_memberships": {
+      "get": {
+        "operationId": "listOrganizationMemberships",
+        "tags": ["organization"],
+        "summary": "List the memberships of an organization",
+        "description": "Source of the connector's user resources (pkg/connector/users.go:134) and of the organization role grants (pkg/connector/organizations.go:160). Also called with `email` set and no pagination when resolving a principal to the membership that must be deleted (pkg/connector/organizations.go:260).\n\n`organization` is always sent — without it Calendly scopes the listing to the caller rather than the organization. `email` is sent only on the revoke path, where the connector passes the principal's display name, which for both user shapes it builds is the email address.\n\n`user.uri` is the connector's user resource ID and `role` drives the role entitlement — both parity-critical. `uri` (the membership URI, not the user URI) is what deleteOrganizationMembership consumes, after `parseResourceID` trims it to its last path segment.",
+        "externalDocs": { "url": "https://developer.calendly.com/api-docs/bc85128b93c60-list-organization-memberships" },
+        "parameters": [
+          { "$ref": "#/components/parameters/OrganizationFilter" },
+          { "$ref": "#/components/parameters/Count" },
+          { "$ref": "#/components/parameters/PageToken" },
+          { "$ref": "#/components/parameters/EmailFilter" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of organization memberships.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["collection", "pagination"],
+                  "properties": {
+                    "collection": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/OrganizationMembership" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/organization_memberships/{uuid}": {
+      "delete": {
+        "operationId": "deleteOrganizationMembership",
+        "tags": ["organization"],
+        "summary": "Remove a user from the organization",
+        "description": "Backs revoking the `user` entitlement (pkg/connector/organizations.go:275). The `uuid` is the trailing segment of the membership URI found by the preceding filtered listOrganizationMemberships call — not the user's UUID.\n\nThe connector refuses to proceed if that lookup returns more than one membership, so a revoke is only issued when the email filter resolves to exactly one person.\n\nCalendly returns 204 with no body. The client sends no body of its own but still attaches `null` — see the note on createRequest in the PR description.",
+        "externalDocs": { "url": "https://developer.calendly.com/api-docs/6a9e7085c751b-remove-user-from-organization" },
+        "parameters": [
+          { "$ref": "#/components/parameters/MembershipUuid" }
+        ],
+        "responses": {
+          "204": { "description": "Membership removed." },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/organizations/{uuid}/invitations": {
+      "get": {
+        "operationId": "listOrganizationInvitations",
+        "tags": ["organization"],
+        "summary": "List an organization's invitations",
+        "description": "Source of the connector's pending-user resources (pkg/connector/users.go:112) and of the `pending_user` grants (pkg/connector/organizations.go:138). Also called with `email` set and no pagination when resolving a principal to the invitation that must be revoked (pkg/connector/organizations.go:284).\n\n`status=pending` is hardcoded on every call and is load-bearing: Calendly returns accepted and declined invitations too when it is omitted, and the connector would emit already-accepted invitees as separate pending users alongside their real membership.\n\nThe path is built with `url.JoinPath` on the stored organization URI, so the base-URL config does not apply here either.\n\nNote the identifier asymmetry this creates: users discovered through memberships are keyed by `user.uri`, but users discovered through invitations are keyed by `email`, because an unaccepted invitation has no user URI. The same person can therefore appear under two resource IDs across the two sources.",
+        "externalDocs": { "url": "https://developer.calendly.com/api-docs/3ad68ee2cc606-list-organization-invitations" },
+        "x-connector-url-source": "url.JoinPath on the stored organization URI, not a formatted path",
+        "parameters": [
+          { "$ref": "#/components/parameters/OrgUuid" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Invitation status filter. The connector always sends `pending`; omitting it would also return accepted and declined invitations.",
+            "schema": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+            "example": "pending"
+          },
+          { "$ref": "#/components/parameters/Count" },
+          { "$ref": "#/components/parameters/PageToken" },
+          { "$ref": "#/components/parameters/EmailFilter" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of organization invitations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["collection", "pagination"],
+                  "properties": {
+                    "collection": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Invitation" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "post": {
+        "operationId": "createOrganizationInvitation",
+        "tags": ["organization"],
+        "summary": "Invite a user to the organization",
+        "description": "Backs granting the `pending_user` entitlement (pkg/connector/organizations.go:221). The email sent is the principal's resource ID, which for a pending user resource is the email address itself.\n\nCalendly returns 201 with the created invitation; the client decodes nothing and keeps only the rate-limit headers.",
+        "externalDocs": { "url": "https://developer.calendly.com/api-docs/e6cbf6f9f7c0f-invite-user-to-organization" },
+        "x-connector-url-source": "url.JoinPath on the stored organization URI, not a formatted path",
+        "parameters": [
+          { "$ref": "#/components/parameters/OrgUuid" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "description": "Email address of the person being invited." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Invitation created. Body not decoded by the connector." },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/organizations/{org_uuid}/invitations/{uuid}": {
+      "delete": {
+        "operationId": "revokeOrganizationInvitation",
+        "tags": ["organization"],
+        "summary": "Revoke a pending invitation",
+        "description": "Backs revoking the `pending_user` entitlement (pkg/connector/organizations.go:296). The `uuid` is the trailing segment of the invitation URI found by the preceding filtered listOrganizationInvitations call.\n\nUnlike the membership revoke, duplicates are tolerated here: the connector takes the first match rather than erroring, so a person with more than one pending invitation has only one revoked per call.\n\nThe path is built with `url.JoinPath` on the stored organization URI.",
+        "externalDocs": { "url": "https://developer.calendly.com/api-docs/12cc9dc8ca9b0-revoke-user-s-organization-invitation" },
+        "x-connector-url-source": "url.JoinPath on the stored organization URI, not a formatted path",
+        "parameters": [
+          { "$ref": "#/components/parameters/OrgUuidForInvitation" },
+          { "$ref": "#/components/parameters/InvitationUuid" }
+        ],
+        "responses": {
+          "204": { "description": "Invitation revoked." },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Calendly personal access token or OAuth access token, attached by uhttp.NewBearerAuth."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Calendly error. The client decodes `title` and `message` and folds them into a gRPC Unknown status; the `details` array Calendly also returns is discarded.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "OrgUuid": {
+        "name": "uuid",
+        "in": "path",
+        "required": true,
+        "description": "The organization's UUID. Never formatted by the client — it arrives as part of the stored organization URI.",
+        "schema": { "type": "string" }
+      },
+      "OrgUuidForInvitation": {
+        "name": "org_uuid",
+        "in": "path",
+        "required": true,
+        "description": "The organization's UUID, as Calendly names it on this path. Arrives as part of the stored organization URI.",
+        "schema": { "type": "string" }
+      },
+      "MembershipUuid": {
+        "name": "uuid",
+        "in": "path",
+        "required": true,
+        "description": "The membership's UUID — the last path segment of `OrganizationMembership.uri`, extracted by parseResourceID. Not the user's UUID.",
+        "schema": { "type": "string" }
+      },
+      "InvitationUuid": {
+        "name": "uuid",
+        "in": "path",
+        "required": true,
+        "description": "The invitation's UUID — the last path segment of `Invitation.uri`, extracted by parseResourceID.",
+        "schema": { "type": "string" }
+      },
+      "OrganizationFilter": {
+        "name": "organization",
+        "in": "query",
+        "required": true,
+        "description": "Organization URI to scope the listing to. Calendly documents this as optional, but the connector always sends it; without it the listing is scoped to the caller instead of the organization.",
+        "schema": { "type": "string", "format": "uri" }
+      },
+      "EmailFilter": {
+        "name": "email",
+        "in": "query",
+        "required": false,
+        "description": "Restrict results to one email address. Sent only on the revoke paths, where the connector uses it to resolve a principal to a single membership or invitation.",
+        "schema": { "type": "string", "format": "email" }
+      },
+      "Count": {
+        "name": "count",
+        "in": "query",
+        "required": false,
+        "description": "Page size. The connector sends its configured resource page size, and omits the parameter entirely on the unpaginated revoke lookups — which means those fall back to Calendly's default of 20.",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+      },
+      "PageToken": {
+        "name": "page_token",
+        "in": "query",
+        "required": false,
+        "description": "Page cursor, echoed from the previous response's `pagination.next_page_token`. Omitted on the first call and on the revoke lookups.",
+        "schema": { "type": "string" }
+      }
+    },
+    "schemas": {
+      "Pagination": {
+        "type": "object",
+        "description": "Shared list envelope metadata. The connector decodes `count` and `next_page_token`; `next_page`, `previous_page`, and `previous_page_token` are returned by Calendly but not read.",
+        "properties": {
+          "count": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Number of rows in this page." },
+          "next_page_token": {
+            "type": ["string", "null"],
+            "description": "Cursor for the next page, replayed as the `page_token` query parameter. Null when the collection is exhausted, which is what ends the connector's loop."
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "description": "A Calendly user. Only the properties the connector decodes are listed.",
+        "properties": {
+          "uri": { "type": "string", "format": "uri", "description": "Canonical user URI. The connector's user resource ID for members discovered through memberships — parity-critical." },
+          "email": { "type": "string", "format": "email", "description": "Email address. Used as the user's display name and login, and as the resource ID for users discovered through invitations." },
+          "name": { "type": "string", "description": "Human-readable name. Split into first and last name for the user trait." },
+          "slug": { "type": "string", "description": "Scheduling-page slug. Carried on the user profile." },
+          "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp. Decoded into a plain Go string and parsed as RFC 3339; a parse failure is swallowed and the created-at trait is simply omitted." },
+          "current_organization": { "type": "string", "format": "uri", "description": "URI of the user's organization. Read only from getCurrentUser, where it becomes the connector's organization resource ID — parity-critical." }
+        }
+      },
+      "Organization": {
+        "type": "object",
+        "description": "An organization. Only the properties the connector decodes are listed; Calendly also returns `name` and `kind`.",
+        "properties": {
+          "uri": { "type": "string", "format": "uri", "description": "Canonical organization URI. The connector's organization resource ID — parity-critical." },
+          "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp." },
+          "plan": { "type": "string", "description": "Active subscription or trial plan." },
+          "stage": { "type": "string", "description": "Current stage of the organization." }
+        }
+      },
+      "OrganizationMembership": {
+        "type": "object",
+        "description": "A user's membership in an organization.",
+        "properties": {
+          "uri": { "type": "string", "format": "uri", "description": "Canonical membership URI. Its last path segment is the `uuid` for deleteOrganizationMembership — parity-critical." },
+          "organization": { "type": "string", "format": "uri", "description": "URI of the organization this membership belongs to." },
+          "role": {
+            "type": "string",
+            "description": "The user's role in the organization. Maps one-to-one onto the connector's role entitlements. The connector hard-fails the sync on any value outside this enum, so an upstream role addition breaks syncing rather than degrading it.",
+            "enum": ["owner", "admin", "user"]
+          },
+          "user": { "$ref": "#/components/schemas/User", "description": "The member's user record, embedded in full." }
+        }
+      },
+      "Invitation": {
+        "type": "object",
+        "description": "An invitation to join an organization. The connector only ever sees pending ones.",
+        "properties": {
+          "uri": { "type": "string", "format": "uri", "description": "Canonical invitation URI. Its last path segment is the `uuid` for revokeOrganizationInvitation — parity-critical." },
+          "email": { "type": "string", "format": "email", "description": "Invited email address. The connector's user resource ID for invitation-derived users — parity-critical." },
+          "status": {
+            "type": "string",
+            "description": "Invitation status. Always `pending` in practice because the request pins the filter.",
+            "enum": ["pending", "accepted", "declined"]
+          },
+          "created_at": { "type": "string", "format": "date-time", "description": "When the invitation was created." },
+          "user": { "type": "string", "format": "uri", "description": "URI of the user who accepted the invitation. Decoded but empty for pending invitations, which is all the connector requests." }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Calendly's error envelope, as far as the connector decodes it.",
+        "properties": {
+          "title": { "type": "string", "description": "Short error title." },
+          "message": { "type": "string", "description": "Human-readable message. The only field surfaced in the connector's error text." }
+        }
+      }
+    }
+  }
+}
