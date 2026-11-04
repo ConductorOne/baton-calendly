@@ -79,6 +79,14 @@ type ListResponse[T any] struct {
 	Pagination *PaginationVars `json:"pagination"`
 }
 
+// HasPaginationData satisfies uhttp.PaginatedResponse. Calendly marks pagination as a
+// required property of every list response and nulls only next_page_token on the last
+// page, so a nil Pagination means the object was dropped - and the callers below read
+// Pagination.Next without a guard.
+func (r *ListResponse[T]) HasPaginationData() bool {
+	return r.Pagination != nil
+}
+
 type SingleResponse[T any] struct {
 	Resource T `json:"resource"`
 }
@@ -136,6 +144,7 @@ func (c *Client) ListUsersUnderOrg(ctx context.Context, orgURI string, pgVars *P
 		return nil, "", err
 	}
 
+	// WithPaginationData already failed the request if Calendly omitted pagination.
 	return res.Collection, res.Pagination.Next, nil
 }
 
@@ -208,6 +217,7 @@ func (c *Client) ListUserInvitations(ctx context.Context, orgURI string, pgVars 
 		return nil, "", nil, err
 	}
 
+	// WithPaginationData already failed the request if Calendly omitted pagination.
 	return res.Collection, res.Pagination.Next, rldata, nil
 }
 
@@ -232,7 +242,18 @@ func (c *Client) get(ctx context.Context, urlAddress *url.URL, response interfac
 	}
 
 	var rldata *v2.RateLimitDescription
-	resp, err := c.wrapper.Do(req, uhttp.WithJSONResponse(response), WithErrorResponse(&ErrorResponse{}), WithRatelimitData(rldata))
+	doOptions := []uhttp.DoOption{
+		uhttp.WithJSONResponse(response),
+		WithErrorResponse(&ErrorResponse{}),
+		WithRatelimitData(rldata),
+	}
+	// A response type that reports its own pagination data is additionally checked for it,
+	// so a page arriving without a cursor fails here instead of silently ending the sync.
+	if paginated, ok := response.(uhttp.PaginatedResponse); ok {
+		doOptions = append(doOptions, uhttp.WithPaginationData(paginated))
+	}
+
+	resp, err := c.wrapper.Do(req, doOptions...)
 	if err != nil {
 		return nil, err
 	}
